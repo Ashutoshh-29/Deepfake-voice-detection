@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voicecheck — is this voice real?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EEF1F5;
+    --surface: #FFFFFF;
+    --ink: #12151C;
+    --muted: #5B6472;
+    --line: #D6DCE5;
+    --real: #1F9D74;
+    --fake: #D65F4C;
+    --grad-a: #3E6AE1;
+    --grad-b: #B84FD1;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, .display {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 20px 0;
+  }
+
+  header .wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: -0.02em;
+  }
+
+  .logo span { color: var(--muted); font-weight: 400; }
+
+  main { padding: 64px 0 96px; }
+
+  .hero {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 48px;
+    align-items: center;
+    margin-bottom: 72px;
+  }
+
+  @media (max-width: 760px) {
+    .hero { grid-template-columns: 1fr; gap: 32px; }
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 4vw, 2.9rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    margin: 0 0 16px;
+    max-width: 14ch;
+  }
+
+  .hero p {
+    color: var(--muted);
+    font-size: 1.05rem;
+    line-height: 1.55;
+    max-width: 42ch;
+    margin: 0;
+  }
+
+  #waveform {
+    width: 100%;
+    height: 160px;
+    display: block;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 32px;
+  }
+
+  .dropzone {
+    border: 1px dashed var(--line);
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .dropzone:hover, .dropzone.drag {
+    border-color: var(--grad-a);
+    background: #F5F7FC;
+  }
+
+  .dropzone p {
+    margin: 0 0 4px;
+    font-weight: 500;
+  }
+
+  .dropzone span {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.92rem;
+    padding: 12px 20px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--surface);
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+
+  button.secondary {
+    background: transparent;
+    color: var(--ink);
+  }
+
+  button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  button:not(:disabled):hover { opacity: 0.85; }
+
+  .filename {
+    margin-top: 16px;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
+  .filename strong { color: var(--ink); }
+
+  #result {
+    margin-top: 32px;
+    border-top: 1px solid var(--line);
+    padding-top: 28px;
+    display: none;
+  }
+
+  #result.show { display: block; }
+
+  .verdict {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .verdict .label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+  }
+
+  .verdict .label.real { color: var(--real); }
+  .verdict .label.fake { color: var(--fake); }
+
+  .confidence-track {
+    height: 6px;
+    background: var(--line);
+    width: 100%;
+    position: relative;
+    margin-bottom: 8px;
+  }
+
+  .confidence-fill {
+    height: 100%;
+    background: var(--ink);
+    width: 0%;
+    transition: width 0.6s ease;
+  }
+
+  .confidence-fill.real { background: var(--real); }
+  .confidence-fill.fake { background: var(--fake); }
+
+  .confidence-label {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .note {
+    margin-top: 20px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .status {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-top: 16px;
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 24px 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="logo">voicecheck<span>.detect</span></div>
+    <div class="logo" style="font-weight:400; font-size:0.85rem; color:var(--muted);">mini project</div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="hero">
+      <div>
+        <h1>Is this voice real, or generated?</h1>
+        <p>Upload a clip or record one live. The model looks at the acoustic fingerprint of the audio — pitch smoothness, spectral texture, and artifacts left behind by voice synthesis — to judge whether it's a real human recording or an AI-generated one.</p>
+      </div>
+      <canvas id="waveform"></canvas>
+    </div>
+
+    <div class="panel">
+      <div class="dropzone" id="dropzone">
+        <p>Drop an audio file here, or click to browse</p>
+        <span>WAV or MP3, up to ~10MB</span>
+        <input type="file" id="fileInput" accept="audio/*" hidden />
+      </div>
+
+      <div class="controls">
+        <button id="recordBtn">Record instead</button>
+        <button id="analyzeBtn" class="secondary" disabled>Analyze audio</button>
+      </div>
+
+      <div class="filename" id="filename"></div>
+      <div class="status" id="status"></div>
+
+      <div id="result">
+        <div class="verdict">
+          <span class="display" id="verdictLabel"></span>
+        </div>
+        <div class="confidence-track">
+          <div class="confidence-fill" id="confidenceFill"></div>
+        </div>
+        <div class="confidence-label" id="confidenceLabel"></div>
+      </div>
+
+      <div class="note">This is a mini project demo, not a forensic tool. Predictions reflect the training data and are not proof of authenticity.</div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">Built for CS mini project · real vs AI-generated voice classifier</div>
+</footer>
+
+<script>
+  // ---- Config: point this at your deployed backend ----
+  const API_URL = "https://your-backend.onrender.com/predict";
+
+  // ---- Waveform hero visual (idle animation, purely decorative) ----
+  const canvas = document.getElementById('waveform');
+  const ctx = canvas.getContext('2d');
+  let bars = [];
+  let animating = true;
+
+  function resizeCanvas() {
+    canvas.width = canvas.clientWidth * devicePixelRatio;
+    canvas.height = canvas.clientHeight * devicePixelRatio;
+  }
+
+  function initBars() {
+    const count = 48;
+    bars = Array.from({ length: count }, () => 0.15 + Math.random() * 0.5);
+  }
+
+  function drawWave(active) {
+    resizeCanvas();
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    const barW = w / bars.length;
+    bars.forEach((v, i) => {
+      const target = active ? 0.2 + Math.random() * 0.8 : v;
+      bars[i] += (target - bars[i]) * 0.15;
+      const barH = bars[i] * h;
+      const grad = ctx.createLinearGradient(0, h - barH, 0, h);
+      grad.addColorStop(0, '#3E6AE1');
+      grad.addColorStop(1, '#B84FD1');
+      ctx.fillStyle = grad;
+      const pad = barW * 0.25;
+      ctx.fillRect(i * barW + pad / 2, h - barH, barW - pad, barH);
+    });
+  }
+
+  let isAnalyzing = false;
+  function loop() {
+    drawWave(isAnalyzing);
+    if (animating) requestAnimationFrame(loop);
+  }
+  initBars();
+  loop();
+  window.addEventListener('resize', resizeCanvas);
+
+  // ---- File selection ----
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const filenameEl = document.getElementById('filename');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const recordBtn = document.getElementById('recordBtn');
+  const statusEl = document.getElementById('status');
+
+  let currentBlob = null;
+  let currentName = '';
+
+  dropzone.addEventListener('click', () => fileInput.click());
+
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('drag');
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) setFile(fileInput.files[0]);
+  });
+
+  function setFile(file) {
+    currentBlob = file;
+    currentName = file.name;
+    filenameEl.innerHTML = `Selected: <strong>${file.name}</strong>`;
+    analyzeBtn.disabled = false;
+    hideResult();
+  }
+
+  // ---- Recording via MediaRecorder ----
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let isRecording = false;
+
+  recordBtn.addEventListener('click', async () => {
+    if (!isRecording) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
+        mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+          currentBlob = blob;
+          currentName = 'recording.webm';
+          filenameEl.innerHTML = `Recorded: <strong>${currentName}</strong>`;
+          analyzeBtn.disabled = false;
+          hideResult();
+          stream.getTracks().forEach(t => t.stop());
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        recordBtn.textContent = 'Stop recording';
+        statusEl.textContent = 'Recording… click again to stop.';
+      } catch (err) {
+        statusEl.textContent = 'Microphone access was denied or unavailable.';
+      }
+    } else {
+      mediaRecorder.stop();
+      isRecording = false;
+      recordBtn.textContent = 'Record instead';
+      statusEl.textContent = '';
+    }
+  });
+
+  // ---- Analyze: send to backend ----
+  analyzeBtn.addEventListener('click', async () => {
+    if (!currentBlob) return;
+    isAnalyzing = true;
+    analyzeBtn.disabled = true;
+    statusEl.textContent = 'Analyzing audio…';
+    hideResult();
+
+    const formData = new FormData();
+    formData.append('audio', currentBlob, currentName || 'audio');
+
+    try {
+      const res = await fetch(API_URL, { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Request failed: ' + res.status);
+      const data = await res.json();
+      showResult(data);
+      statusEl.textContent = '';
+    } catch (err) {
+      statusEl.textContent = 'Could not reach the detection API. Is the backend deployed and API_URL set correctly?';
+    } finally {
+      isAnalyzing = false;
+      analyzeBtn.disabled = false;
+    }
+  });
+
+  function showResult(data) {
+    // Expected shape: { label: "real" | "fake", confidence: 0.0-1.0 }
+    const resultEl = document.getElementById('result');
+    const verdictLabel = document.getElementById('verdictLabel');
+    const fill = document.getElementById('confidenceFill');
+    const confLabel = document.getElementById('confidenceLabel');
+
+    const isReal = data.label === 'real';
+    verdictLabel.textContent = isReal ? 'Likely real' : 'Likely AI-generated';
+    verdictLabel.className = 'display label ' + (isReal ? 'real' : 'fake');
+
+    const pct = Math.round((data.confidence ?? 0) * 100);
+    fill.style.width = pct + '%';
+    fill.className = 'confidence-fill ' + (isReal ? 'real' : 'fake');
+    confLabel.textContent = `${pct}% confidence`;
+
+    resultEl.classList.add('show');
+  }
+
+  function hideResult() {
+    document.getElementById('result').classList.remove('show');
+  }
+</script>
+
+</body>
+</html>
