@@ -1,13 +1,18 @@
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-import numpy as np
-import librosa
 import io
+import os
+
+import numpy as np
+import torch
+from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from model_def import N_SAMPLES, SpoofCNN, fix_length, load_audio, to_logmel
 
 app = FastAPI(title="Voicecheck API")
 
-# TODO: once deployed, replace "*" with your actual frontend URL
-# e.g. ["https://your-frontend.vercel.app"]
+# TODO: after deploying, replace "*" with your frontend URL,
+# e.g. ["https://your-project.vercel.app"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,38 +20,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "model.pt")
+model = SpoofCNN()
+model_loaded = False
+if os.path.exists(MODEL_PATH):
+    model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
+    model.eval()
+    model_loaded = True
 
-def extract_features(audio_bytes: bytes):
-    """Load audio and extract MFCC features for the model."""
-    y, sr = librosa.load(io.BytesIO(audio_bytes), sr=16000)
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40)
-    mfcc_mean = np.mean(mfcc.T, axis=0)
-    return mfcc_mean
+
+def predict_probs(y):
+    """Split long audio into 4s windows (max 5), average the predictions."""
+    chunks = [y[i:i + N_SAMPLES] for i in range(0, len(y), N_SAMPLES)][:5]
+    if len(chunks) > 1 and len(chunks[-1]) < N_SAMPLES // 2:
+        chunks = chunks[:-1]  # drop a tiny trailing piece
+    feats = np.stack([to_logmel(fix_length(c)) for c in chunks])
+    x = torch.tensor(feats).unsqueeze(1)
+    with torch.no_grad():
+        return torch.softmax(model(x), dim=1).mean(0)  # [p_real, p_fake]
 
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "message": "Voicecheck API is running"}
+    return {"status": "ok", "model_loaded": model_loaded}
 
 
 @app.post("/predict")
 async def predict(audio: UploadFile = File(...)):
+    if not model_loaded:
+        return JSONResponse(status_code=503, content={"error": "Model file model.pt not found on server"})
+
     audio_bytes = await audio.read()
-
     try:
-        features = extract_features(audio_bytes)
+        y = load_audio(io.BytesIO(audio_bytes))
     except Exception as e:
-        return {"error": f"Could not process audio: {str(e)}"}
+        return JSONResponse(status_code=400, content={"error": f"Could not read audio: {e}"})
 
-    # --- Placeholder logic ---
-    # Replace this with: load your trained model once at startup,
-    # then run model.predict(features) here instead of the random guess below.
-    #
-    # Example once you have a trained model saved as model.pkl or model.pt:
-    #   prediction = model.predict([features])[0]
-    #   confidence = model.predict_proba([features])[0].max()
-    fake_score = float(np.clip(np.mean(features) % 1, 0.05, 0.95))
-    label = "real" if fake_score < 0.5 else "fake"
-    confidence = fake_score if label == "fake" else 1 - fake_score
-
-    return {"label": label, "confidence": round(confidence, 2)}
+    probs = predict_probs(y)
+    p_real, p_fake = probs[0].item(), probs[1].item()
+    label = "fake" if p_fake > p_real else "real"
+    return {"label": label, "confidence": round(max(p_real, p_fake), 3)}
