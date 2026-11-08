@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 class="display-5 fw-bold mb-3">Is this voice real, or AI-generated?</h1>
+<p class="text-secondary mb-4" style="max-width: 60ch;">
+  Upload a voice recording. The system converts it to a spectrogram and a trained
+  CNN judges whether it is genuine human speech or synthetic (spoofed) speech.
+</p>
+
+{% if not model_loaded %}
+  <div class="alert alert-warning">
+    The trained model file (<code>model.pt</code>) was not found on the server, so predictions are unavailable.
+  </div>
+{% endif %}
+
+<div class="panel">
+  <form id="upload-form">
+    <label for="audio" class="form-label fw-semibold">Audio file</label>
+    <input class="form-control mb-2" type="file" id="audio" name="audio"
+           accept=".wav,.mp3,.flac,.ogg,audio/*" required>
+    <div class="form-text mb-3">WAV, MP3, FLAC or OGG, up to {{ max_mb }} MB.</div>
+    <button type="submit" id="analyze-btn" class="btn btn-dark px-4" {% if not model_loaded %}disabled{% endif %}>
+      Analyze audio
+    </button>
+    <span id="spinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+  </form>
+
+  <div id="error-box" class="alert alert-danger mt-4 mb-0 d-none"></div>
+
+  <div id="result" class="mt-4 pt-4 border-top d-none">
+    <div id="verdict" class="verdict fs-2 fw-bold mb-3"></div>
+    <div class="progress mb-2" style="height: 8px;">
+      <div id="bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+    </div>
+    <div id="confidence" class="text-secondary small"></div>
+    <div id="filename" class="text-secondary small mt-1"></div>
+  </div>
+</div>
+
+<script>
+  const form = document.getElementById('upload-form');
+  const fileInput = document.getElementById('audio');
+  const btn = document.getElementById('analyze-btn');
+  const spinner = document.getElementById('spinner');
+  const errorBox = document.getElementById('error-box');
+  const resultBox = document.getElementById('result');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    errorBox.classList.add('d-none');
+    resultBox.classList.add('d-none');
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+
+    const formData = new FormData();
+    formData.append('audio', file);
+
+    try {
+      const res = await fetch('/predict', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed (' + res.status + ')');
+      showResult(data);
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.remove('d-none');
+    } finally {
+      btn.disabled = false;
+      spinner.classList.add('d-none');
+    }
+  });
+
+  function showResult(data) {
+    const isReal = data.label === 'real';
+    const pct = Math.round(data.confidence * 100);
+
+    const verdict = document.getElementById('verdict');
+    verdict.textContent = isReal ? 'Likely real (bonafide)' : 'Likely AI-generated (spoofed)';
+    verdict.className = 'verdict fs-2 fw-bold mb-3 ' + (isReal ? 'text-real' : 'text-fake');
+
+    const bar = document.getElementById('bar');
+    bar.style.width = pct + '%';
+    bar.className = 'progress-bar ' + (isReal ? 'bar-real' : 'bar-fake');
+
+    document.getElementById('confidence').textContent = pct + '% confidence';
+    document.getElementById('filename').textContent = 'File: ' + data.filename;
+    resultBox.classList.remove('d-none');
+  }
+</script>
+{% endblock %}

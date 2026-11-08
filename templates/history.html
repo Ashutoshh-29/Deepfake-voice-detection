@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Prediction history{% endblock %}
+
+{% block content %}
+<h1 class="fw-bold mb-4">Prediction history</h1>
+
+<div class="row g-3 mb-4">
+  <div class="col-4"><div class="panel py-3"><div class="text-secondary small">Total checked</div><div class="fs-3 fw-bold">{{ total }}</div></div></div>
+  <div class="col-4"><div class="panel py-3"><div class="text-secondary small">Real</div><div class="fs-3 fw-bold text-real">{{ real_total }}</div></div></div>
+  <div class="col-4"><div class="panel py-3"><div class="text-secondary small">Fake</div><div class="fs-3 fw-bold text-fake">{{ fake_total }}</div></div></div>
+</div>
+
+<div class="panel p-0 table-responsive">
+  <table class="table table-hover mb-0 align-middle">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Filename</th>
+        <th>Result</th>
+        <th>Confidence</th>
+        <th>Time (UTC)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td>{{ r.filename }}</td>
+        <td>
+          <span class="badge {{ 'badge-real' if r.label == 'real' else 'badge-fake' }}">
+            {{ 'Real' if r.label == 'real' else 'Fake' }}
+          </span>
+        </td>
+        <td>{{ (r.confidence * 100) | round(1) }}%</td>
+        <td>{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-center text-secondary py-4">No predictions yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-secondary small mt-3">Showing the 100 most recent predictions.</p>
+{% endblock %}

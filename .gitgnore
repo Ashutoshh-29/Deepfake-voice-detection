@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+predictions.db
+test_predictions.db
+.pytest_cache/
