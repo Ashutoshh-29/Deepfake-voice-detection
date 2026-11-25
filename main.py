@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -20,14 +21,20 @@ from model_def import N_SAMPLES, SpoofCNN, fix_length, load_audio, to_logmel
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model.pt"
+STATIC_DIR = BASE_DIR / "static"
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg"}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 ADMIN_KEY = os.environ.get("ADMIN_KEY")  # optional: protects /history if set
 
 app = FastAPI(title="Deepfake Voice Detection System")
+STATIC_DIR.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 init_db()
+
+if not (STATIC_DIR / "bootstrap.min.css").exists():
+    print("WARNING: static/bootstrap.min.css is missing - the pages will look unstyled.")
 
 # ---- Load the trained model once at startup ----
 model = SpoofCNN()
