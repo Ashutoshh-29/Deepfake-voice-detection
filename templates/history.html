@@ -19,7 +19,7 @@
         <th>Filename</th>
         <th>Result</th>
         <th>Confidence</th>
-        <th>Time (UTC)</th>
+        <th>Time (IST)</th>
       </tr>
     </thead>
     <tbody>
@@ -33,7 +33,7 @@
           </span>
         </td>
         <td>{{ (r.confidence * 100) | round(1) }}%</td>
-        <td>{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        <td>{{ r.created_at | ist }}</td>
       </tr>
       {% else %}
       <tr><td colspan="5" class="text-center text-secondary py-4">No predictions yet.</td></tr>
